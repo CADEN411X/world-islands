@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>World Islands Database</title>
+<meta name="description" content="A sortable, searchable list of over 240,000 islands worldwide, with area, country, latitude, highest point, average temperature and type.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%276%27 fill=%27%230a5fa8%27/%3E%3Cpath d=%27M6 22c3-6 6-9 10-9s7 3 10 9z%27 fill=%27%23f2d58a%27/%3E%3Cpath d=%27M14 13c0-3 1-6 2-7 1 1 2 4 2 7%27 fill=%27%232e8b3d%27/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#ffffff; --fg:#111111; --muted:#555555; --line:#d0d0d0; --head:#f0f0f0;
+    --alt:#f8f8f8; --hover:#fff6cc; --accent:#0645ad; --input:#ffffff;
+    box-sizing:border-box;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#161616; --fg:#eeeeee; --muted:#aaaaaa; --line:#3a3a3a; --head:#222222;
+      --alt:#1c1c1c; --hover:#3a3520; --accent:#8ab4f8; --input:#202020;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#161616; --fg:#eeeeee; --muted:#aaaaaa; --line:#3a3a3a; --head:#222222;
+    --alt:#1c1c1c; --hover:#3a3520; --accent:#8ab4f8; --input:#202020;
+  }
+  html{ scroll-padding-top:env(safe-area-inset-top,0px); }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; background:var(--bg); color:var(--fg);
+    font:14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+  .wrap{ max-width:1280px; margin:0 auto; padding:16px; }
+  h1{ font-size:20px; margin:0 0 2px; }
+  .sub{ color:var(--muted); font-size:13px; margin:0 0 14px; }
+
+  .controls{
+    display:grid; gap:10px;
+    grid-template-columns:repeat(auto-fit, minmax(170px, 1fr));
+    border:1px solid var(--line); background:var(--head); padding:12px; margin-bottom:10px;
+  }
+  .controls label{ display:flex; flex-direction:column; gap:3px; font-size:12px; color:var(--muted); }
+  .controls input, .controls select{
+    font:inherit; color:var(--fg); background:var(--input);
+    border:1px solid var(--line); padding:6px 8px; border-radius:3px; width:100%;
+  }
+  .controls .wide{ grid-column:span 2; }
+  @media (max-width:420px){ .controls .wide{ grid-column:span 1; } }
+  .range{ display:flex; gap:6px; }
+
+  .bar{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:8px; }
+  .bar .count{ font-weight:600; margin-right:auto; }
+  button{
+    font:inherit; color:var(--fg); background:var(--input);
+    border:1px solid var(--line); padding:6px 12px; border-radius:3px; cursor:pointer;
+  }
+  button:hover{ border-color:var(--accent); }
+  button:focus-visible, input:focus-visible, select:focus-visible, th:focus-visible{
+    outline:2px solid var(--accent); outline-offset:1px;
+  }
+  .seg{ display:inline-flex; }
+  .seg button{ border-radius:0; }
+  .seg button:first-child{ border-radius:3px 0 0 3px; }
+  .seg button:last-child{ border-radius:0 3px 3px 0; border-left:none; }
+  .seg button[aria-pressed="true"]{ background:var(--fg); color:var(--bg); border-color:var(--fg); }
+
+  .table-wrap{ overflow-x:auto; border:1px solid var(--line); }
+  table{ border-collapse:collapse; width:100%; min-width:900px; font-variant-numeric:tabular-nums; }
+  th, td{ padding:6px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+  thead th{
+    position:sticky; top:0; background:var(--head); font-weight:600; font-size:13px;
+    cursor:pointer; user-select:none; white-space:nowrap; z-index:1;
+  }
+  thead th.static{ cursor:default; }
+  thead th .ind{ color:var(--muted); font-size:11px; margin-left:4px; }
+  thead th[aria-sort="ascending"] .ind, thead th[aria-sort="descending"] .ind{ color:var(--fg); }
+  tbody tr:nth-child(even){ background:var(--alt); }
+  tbody tr:hover{ background:var(--hover); }
+  td.num{ text-align:right; white-space:nowrap; }
+  td.rank{ color:var(--muted); text-align:right; width:1%; }
+  td.name{ font-weight:600; }
+  td.name a{ color:inherit; text-decoration:none; border-bottom:1px dotted var(--muted); }
+  td.name a:hover, td.name a:focus{ border-bottom-style:solid; }
+  td.name .pin{ font-weight:400; color:var(--muted); font-size:.85em; margin-left:4px; }
+  td.nw{ white-space:nowrap; }
+  .na{ color:var(--muted); }
+  .empty{ padding:24px; text-align:center; color:var(--muted); }
+  .morebar{ display:flex; justify-content:center; padding-block:12px; }
+
+  .notes{ margin-top:18px; font-size:13px; color:var(--muted); max-width:80ch; }
+  .notes h2{ font-size:14px; color:var(--fg); margin:16px 0 4px; }
+  .notes p{ margin:0 0 8px; }
+  .err{ border:1px solid #c00; color:#c00; padding:12px; margin:10px 0; }
+  td .peak{ display:block; font-size:11px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:16ch; margin-left:auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>World Islands Database</h1>
+  <p class="sub" id="subtitle">Every island over 100 km². Click any column header to sort, or an island’s name to open it in Google Maps.</p>
+
+  <div class="controls" role="search">
+    <label class="wide">Search name or country
+      <input type="search" id="q" placeholder="e.g. Crete, Canada, Fiji" autocomplete="off">
+    </label>
+    <label>Region
+      <select id="region"><option value="">All regions</option></select>
+    </label>
+    <label>Country
+      <select id="country"><option value="">All countries</option></select>
+    </label>
+    <label>Island type
+      <select id="type"><option value="">All types</option></select>
+    </label>
+    <label>Size
+      <select id="size">
+        <option value="">Any size</option>
+        <option value="1000">Over 1,000 km²</option>
+        <option value="100">Over 100 km²</option>
+        <option value="1">Over 1 km²</option>
+        <option value="small">0.1–1 km²</option>
+        <option value="islet">Islets under 0.1 km²</option>
+        <option value="unknown">Size unknown</option>
+      </select>
+    </label>
+    <label>Names
+      <select id="named">
+        <option value="">Named and unnamed</option>
+        <option value="yes">Named only</option>
+        <option value="no">Unnamed only</option>
+      </select>
+    </label>
+    <label>Hemisphere
+      <select id="hemi">
+        <option value="">Both</option>
+        <option value="N">Northern</option>
+        <option value="S">Southern</option>
+      </select>
+    </label>
+    <label>Discovery date
+      <select id="disc">
+        <option value="">Any</option>
+        <option value="yes">Has a discovery date</option>
+        <option value="no">No discovery date</option>
+      </select>
+    </label>
+    <label><span id="area-label">Area (km²) min – max</span>
+      <span class="range">
+        <input type="number" id="amin" min="0" placeholder="min" inputmode="numeric">
+        <input type="number" id="amax" min="0" placeholder="max" inputmode="numeric">
+      </span>
+    </label>
+  </div>
+
+  <div class="bar">
+    <span class="count" id="count" aria-live="polite">Loading…</span>
+    <span class="seg" role="group" aria-label="Units">
+      <button type="button" id="u-metric" aria-pressed="true">km² · m · °C</button>
+      <button type="button" id="u-imperial" aria-pressed="false">mi² · ft · °F</button>
+    </span>
+    <button type="button" id="reset">Reset</button>
+    <button type="button" id="csv">Download CSV</button>
+    <button type="button" id="theme" aria-label="Toggle light or dark theme">Light / Dark</button>
+  </div>
+
+  <div id="error"></div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th class="static" scope="col">#</th>
+          <th scope="col" data-key="name" tabindex="0">Island<span class="ind"></span></th>
+          <th scope="col" data-key="area" tabindex="0"><span class="area-h">Area (km²)</span><span class="ind"></span></th>
+          <th scope="col" data-key="elev" tabindex="0"><span class="elev-h">Highest point (m)</span><span class="ind"></span></th>
+          <th scope="col" data-key="country" tabindex="0">Country / territory<span class="ind"></span></th>
+          <th scope="col" data-key="region" tabindex="0">Region<span class="ind"></span></th>
+          <th scope="col" data-key="lat" tabindex="0">Latitude<span class="ind"></span></th>
+          <th scope="col" data-key="temp" tabindex="0"><span class="temp-h">Avg temp (°C, approx.)</span><span class="ind"></span></th>
+          <th scope="col" data-key="discYear" tabindex="0">Discovered<span class="ind"></span></th>
+          <th scope="col" data-key="type" tabindex="0">Type<span class="ind"></span></th>
+        </tr>
+      </thead>
+      <tbody id="rows"><tr><td colspan="10" class="empty">Loading island data…</td></tr></tbody>
+    </table>
+  </div>
+  <div class="morebar"><button type="button" id="more" hidden>Show more</button></div>
+
+  <div class="notes">
+    <h2>About the data</h2>
+    <p><strong>Coverage:</strong> every island over 100 km² that OpenStreetMap maps as an island outline, plus the islands from the original source lists. Sources: Wikipedia island lists (by area for Europe, Oceania, the United States, Japan, the Caribbean, Greenland, lake islands and river islands), national sources (Atlas of Canada, Geoscience Australia, INEGI, IBGE, Banglapedia, PhilAtlas), the IUCN/UNEP Island Directory, and OpenStreetMap. River-delta islands were found by tracing land fully enclosed by mapped channels and coastline in OpenStreetMap, in the Lena, Ob, Yenisei, Volga, Orinoco, Paraná, Ganges–Brahmaputra (Sundarbans and Meghna), Niger, Amazon, Indigirka, Kolyma, Mackenzie, Yukon, Pechora, Zambezi, Indus, Danube, Irrawaddy and Shatt al-Arab deltas, plus the Brahmaputra, the Ganges upstream of its delta, the middle Congo and the St. Lawrence. In heavily farmed deltas crossed by many small rivers (Yangtze, Mekong, Pearl, Godavari) only pieces OpenStreetMap names as islands were kept, and in the Irrawaddy, Ganges–Meghna, Danube, Mississippi and Amur only pieces almost entirely edged by mapped water, so ordinary farmland boxed in by streams isn’t counted as an island. Unnamed ones are labelled by delta and coordinates. Where OpenStreetMap only draws a narrow channel as a line, two neighbouring delta islands may appear as one. Coastlines drawn as a closed loop without an island tag were also checked worldwide. In addition, OpenStreetMap coastlines for nearly every island-bearing coast worldwide (country by country, from Geofabrik extracts) were rebuilt into complete island outlines and checked for anything over 100 km² not already listed. Land separated only by a canal or joined by a causeway is not counted as a separate island, and islands behind lagoons that OpenStreetMap maps as inland water rather than sea can be missed by that check.  Unnamed Antarctic ice-shelf outlines from the 2013 OpenStreetMap Antarctic import are left out. As a last check, every sea and lake island over 100 km² in the full-resolution GSHHG shoreline database was compared against this list; only islands confirmed by a published figure or a name were added from it, and grounded ice rises that aren't named as islands are left out.</p>
+    <p><strong>50–100 km²:</strong> every island outline of this size in the full-resolution GSHHG shoreline database is being checked against OpenStreetMap: where OpenStreetMap maps a named island that matches the outline, the island is added under its OpenStreetMap name, with its English or romanised name where one exists. Earlier passes named islands from Wikipedia island lists and articles (Greenland, British Columbia, Labrador, Chiloé and the Chonos Archipelago, Scandinavia, Korea, Japan, Alaska, the Philippines, Indonesia, Melanesia, the Russian Far East). The check also turns up a few islands just over 100 km² that the earlier 100 km² check had left unnamed (for example Long Island in Newfoundland’s Hermitage Bay, Noyes Island in Alaska and the southern Simpson Island in Great Slave Lake). Where the shoreline database merges an island with its neighbour (Hertsön, Ingarö, Dolsando and a few others), the island is still listed, using its published area and position. Unnamed outlines and mangrove, delta and atoll islands were added by the 1–50 km² pass and the completeness check below. Islands whose published area is under 50 km² are left out even when their outline measures larger.</p>
+    <p><strong>1–50 km²:</strong> every island of this size that OpenStreetMap maps as an island outline, taken from the Overture Maps land dataset (which carries OpenStreetMap islands), plus OpenStreetMap islands over 50 km² that earlier passes had missed (for example Sylt, Manhattan, Key Largo, Kent Island and Lockwood Island). Areas are measured from the OpenStreetMap outline. Island groups, ice rises and peninsulas cut off only by a canal or causeway are left out. Country comes from Natural Earth borders.</p>
+    <p><strong>0.1–1 km² (added 2026-10-07):</strong> every island outline of this size that OpenStreetMap maps as an island or islet (from the Overture Maps land dataset), plus every OpenStreetMap coastline land polygon of this size with no listed island in it. These load from a separate file a few seconds after the main list. Areas are given to 0.01 km², and unnamed ones carry coordinates to three decimals. Islets under 0.1 km² are only included when they have a name (next note).</p>
+    <p><strong>Named islets under 0.1 km² (added 2026-10-07):</strong> every islet under 0.1 km² that OpenStreetMap maps with a name, as an outline (from the Overture Maps land dataset) or as a named point inside a small OpenStreetMap coastline outline, which gives its area. Most are skerries and rocks in Norway, Finland and Sweden. Outlines under 10 m² (Norway’s own cut-off) are left out. Unnamed rocks are left out: counted down to rock size, Norway alone has about 239,000 islands. Countries count islands very differently, so official national totals aren’t comparable with this list. Chile is an example: an older figure of 3,739 islands “above 9,000 m²” is lower than this list’s count of Chilean islands over 0.1 km², but Chile’s 2019 national survey (Bienes Nacionales and the Instituto Geográfico Militar, at 1:50,000) counts 43,471 islands, so this list sits between the two and the older figure was simply a smaller count.</p>
+    <p><strong>Lake and river islands drawn as holes (added 2026-10-07):</strong> many lake and river islands are mapped in OpenStreetMap only as a gap in the surrounding lake, reservoir or river area, not as an island of their own. Every such gap over 1 km², and every smaller one that holds a named island point, was checked against the list, and about 15,500 that were missing were added (about 13,300 unnamed over 1 km², mostly in Canadian and Russian lakes and on the Amazon, Ob, Lena, Yukon and Congo). Their areas are measured from that gap. Gaps in canals, ditches, moats and other man-made water, in lakes and rivers that OpenStreetMap marks as seasonal or salt (dry lake beds), in the Sudd swamps and in the Atchafalaya swamp were left out, as were gaps that are already listed islands or overlap one.</p>
+    <p><strong>River islands between several river pieces (added 2026-10-07):</strong> where OpenStreetMap draws a wide river as several separate water areas that together surround a piece of land, no single water area has a gap for it. All OpenStreetMap river areas (except seasonal ones) were merged one map square at a time and the land they fully enclose was checked against the list; about 3,200 missing river islands were added, most over 1 km² and unnamed, on rivers such as the Ob, Irtysh, Niger, Magdalena, Brahmaputra, Mahanadi and Mississippi, plus named ones such as Raghopur Island on the Ganges, Eba Island in Nigeria and Sauvie Island in Oregon. As with the deltas above, unnamed pieces in the Mekong, Yangtze and Huai, Pearl and Godavari plains (farmland boxed in by channels), the Atchafalaya swamp and the Sudd were left out.</p>
+    <p><strong>Named islets mapped only as a point:</strong> about 7,900 named islands and islets are in OpenStreetMap only as a named point, with no outline, so their size is unknown (shown as “—”, sorted last, and left out when you filter by area). They are rocks and islets at sea, islands drawn inside a mapped lake or river, and islands on big rivers drawn only as a line, such as Argo Island on the Nile. Named points on dry land away from any mapped water (often swamp “islands” and “hammocks”) are left out. Where a small unlisted coastline outline lies within 100 m of a named sea point, its area is used.</p>
+    <p><strong>Duplicate check (2026-10-07):</strong> every listed island’s point was tested against every other listed outline, and every pair of outlines was tested for overlap. 27 duplicates were removed (mostly unnamed outlines that were the same island as a named one). About 90 named islets remain inside a larger unnamed coastline outline, where OpenStreetMap draws a group of skerries joined at low water as one piece and also maps the named islets on it.</p>
+    <p><strong>Names:</strong> the English or Latin-script name where OpenStreetMap has one. Otherwise names are romanised: Chinese with pinyin (島/岛 becomes “Dao”), Japanese with Hepburn (machine romanisation, so readings of place-name kanji can be off), Korean with Revised Romanisation, Thai with the Royal Thai General System (“Ko …”), Russian with a standard transliteration, and Dhivehi and Inuktitut syllabics letter by letter. A few dozen names, mostly Arabic, stay in their own script. Islands with no name at all are listed as “Unnamed island (country, coordinates)”; there are about 66,400 of them (about 27,900 over 1 km²), mostly mangrove, delta, Arctic, skerry, lake and river islands. Unnamed islands south of 60°S (Antarctic ice-edge pieces) are left out.</p>
+    <p><strong>Completeness check (2026-10-07):</strong> every OpenStreetMap coastline land polygon over 1 km² (osmdata.openstreetmap.de, 833,000 polygons) and every lake island over 1 km² in the GSHHG shoreline database was checked for a listed island inside it. About 5,000 that had none were added, most unnamed but some named (for example Big Pine Key, Isla Beata and Masonboro Island); their areas are measured from that outline, and lake islands from GSHHG are typed Lake or, on big rivers, River. Pieces of the mainland cut off only by a canal (the Peloponnese, Kassandra, Door Peninsula), pieces of islands already listed whole (Tsushima, Grand Bahama, Bømlo), and former islands of the dried-up Aral Sea were left out. Where a listed island of about the same size has its point within about 600 m of a matching outline, the outline was treated as that island. A second run of the whole check (later the same day) found that an earlier, looser version of that rule had wrongly skipped about 650 islands over 1 km² that sat next to a similar-sized neighbour, including Manda Island in Kenya and Cudjoe, Big Torch, Little Torch, No Name and Bahia Honda Keys in Florida; those are now added, and about 100 more of 0.1–1 km² and about 280 islands and named islets that earlier filters had dropped. After that second run, the only coastline outlines over 1 km² without a listed island are canal-cut mainland, ice-shelf pieces in Antarctica, and about 20 that are an already-listed island drawn slightly differently.</p>
+    <p><strong>Island type:</strong> Sea, River, Lake or Artificial. For islands added from 2026-10-06 on, an island with its own OpenStreetMap coastline outline is a sea island; one that sits inside the mainland's coastline is a lake island when it lies in a lake (GSHHG lake shorelines, Natural Earth lakes) and otherwise a river island. Where OpenStreetMap maps the lake, reservoir or river around an inland island as a water area (checked 2026-10-07 for about 27,500 islands), that decides between Lake and River. Delta islands keep the River type even where the coastline is drawn around them. A few lagoon and estuary islands may still be typed one way or the other.</p>
+    <p><strong>Area &amp; country:</strong> taken from the source list. Islands added from OpenStreetMap, and a few whose published figure was only approximate (Mandji, Itaparica, Bonny, Rothschild, Hearst, Bananal), use the area measured from the OpenStreetMap outline. Newman Island and the 50–100 km² islands named from Wikipedia without a published figure use the area measured from their GSHHG outline; 50–100 km² islands named from OpenStreetMap use the area measured from the OpenStreetMap outline. Antarctic outlines depend on where the ice-shelf edge is drawn, so treat those areas as rough. On 2026-10-07 every entry from the original source lists was matched to its OpenStreetMap outline: 12 points that sat off their island were moved onto it and two entries without an exact position (Wagina, Inhacamba) got one, 6 duplicates were removed (for example East Jensen Island, another name for MacMillan Island, and Taiping Chow, the main island of Yangzhong), Bear “Island” in Antarctica was dropped as it is a peninsula, and areas were corrected where the list had given a district or municipality figure (Sandwip, Kutubdia, Vårdö) or a wrong one (Forrester Island, Abu Dhabi Island). About 30 other list areas differ from the measured outline by more than half, usually because the published figure includes tidal flats, beaches or neighbouring islets; those keep the published figure. The Åland entries “Föglö” and “Brändö” had the area of the whole municipality; they now stand for the island of that name (Kyrklandet in Föglö, 6.8 km², and Brändö, 4.6 km²), and Föglö’s other large islands are listed separately. Kok Satu, which had no position, was the same island as an unnamed 225 km² outline on the south coast of Papua and the two were merged. Inner Caviana and the western part of Tupinambarana have no separate outline in OpenStreetMap (the channels that divide them are drawn only as lines), so their positions are approximate (≈).</p>
+    <p><strong>Latitude &amp; map links:</strong> most islands use a point on the island taken from OpenStreetMap or from its shoreline outline, and the Google Maps link opens those exact coordinates. A few islands without a usable outline match fall back to the older half-degree latitude (≈ marks rough values) and a Google Maps name search.</p>
+    <p><strong>Highest point (added 2026-10-08):</strong> for every island over 0.1 km² with a known outline, the highest point is the top of the Copernicus GLO-90 elevation model (90 m grid, © DLR / Airbus, Copernicus programme) inside the island’s outline. Where OpenStreetMap has a peak with a surveyed height on the island and it is about as high, that height and the peak’s name are shown instead (for example Pico del Teide on Tenerife). The elevation model measures the surface, so on low wooded or built-up islands without a surveyed peak the figure includes trees or buildings (often 10–30 m), and on steep islands the 90 m grid can miss a sharp summit by a few tens of metres; on ice-covered islands it is the top of the ice. River and lake islands give their height above sea level, not above the water around them. Islets under 0.1 km², islands mapped only as a point and a few large river and delta islands without a usable outline show “—”.</p>
+    <p><strong>Average temperature:</strong> approximate annual mean. For islands added from 2026-10-06 on it is the WorldClim 2.1 annual mean temperature for the 5-arc-minute grid cell at the island (or the nearest land cell), except at polar coasts where WorldClim cells run warm, where it is estimated from the nearest listed islands. For older entries it is the annual mean at low elevation or the coast. Mountainous islands are much colder at altitude. Treat it as a rough guide, not a measurement.</p>
+    <p><strong>Discovered:</strong> only given for islands that were uninhabited when people first reached them (e.g. Iceland, the Antarctic islands, New Zealand). Islands people already lived on when outsiders arrived show "—", since they weren't really "discovered". Dates marked "c." are approximate.</p>
+    <p id="updated"></p>
+  </div>
+</div>
+
+<!-- Island data lives in this separate file. Edit it to change the database. -->
+<script>
+(function(){
+  "use strict";
+  // Data files, kept separate from the page so they can be updated on their own
+  var HOSTED_JSON = "data/islands.json";
+
+  var EXTRA_JSON = ["data/small_1.json", "data/small_2.json", "data/small_3.json"];
+  var DATA = [];
+  var state = { key:"area", dir:"desc", units:"metric" };
+  var $ = function(id){ return document.getElementById(id); };
+  var KM2_TO_MI2 = 0.386102;
+
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+  function fmtArea(km2){
+    if(km2 == null) return '<span class="na" title="Mapped only as a point, so no outline to measure">—</span>';
+    var v = state.units === "metric" ? km2 : km2 * KM2_TO_MI2;
+    if(v >= 100) v = Math.round(v); else if(v >= 1) v = Math.round(v * 10) / 10;
+    else return v > 0 ? Number(v.toPrecision(2)).toFixed(Math.min(6, Math.max(2, 1 - Math.floor(Math.log10(v))))).replace(/0+$/, "").replace(/\.$/, "") : "0";
+    return v.toLocaleString("en-US");
+  }
+  function fmtTemp(c){
+    var v = state.units === "metric" ? c : c * 9/5 + 32;
+    v = Math.round(v * 10) / 10;
+    return v + (state.units === "metric" ? " °C" : " °F");
+  }
+  function fmtElev(d){
+    if(d.elev == null) return '<span class="na">—</span>';
+    var v = state.units === "metric" ? d.elev : Math.round(d.elev * 3.28084);
+    return v.toLocaleString("en-US") + (d.peak ? '<span class="peak">' + esc(d.peak) + "</span>" : "");
+  }
+  function fmtLat(l, approx){ return (approx ? "≈" : "") + Math.abs(l).toFixed(1) + "° " + (l >= 0 ? "N" : "S"); }
+
+  function areaInput(id){
+    var v = parseFloat($(id).value);
+    if(isNaN(v)) return null;
+    return state.units === "metric" ? v : v / KM2_TO_MI2; // convert back to km²
+  }
+
+  function filtered(){
+    var q = $("q").value.trim().toLowerCase();
+    var region = $("region").value, country = $("country").value, type = $("type").value;
+    var hemi = $("hemi").value, disc = $("disc").value, size = $("size").value, named = $("named").value;
+    var amin = areaInput("amin"), amax = areaInput("amax");
+    return DATA.filter(function(d){
+      if(q && d.name.toLowerCase().indexOf(q) < 0 && d.country.toLowerCase().indexOf(q) < 0) return false;
+      if(region && d.region !== region) return false;
+      if(named === "yes" && d._unnamed) return false;
+      if(named === "no" && !d._unnamed) return false;
+      if(size){
+        var a = d.area;
+        if(size === "unknown"){ if(a != null) return false; }
+        else if(a == null) return false;
+        else if(size === "small"){ if(a < 0.1 || a >= 1) return false; }
+        else if(size === "islet"){ if(a >= 0.1) return false; }
+        else if(a < +size) return false;
+      }
+      if(country && d._countries.indexOf(country) < 0) return false;
+      if(type && d.type !== type) return false;
+      if(hemi === "N" && d.lat < 0) return false;
+      if(hemi === "S" && d.lat >= 0) return false;
+      if(disc === "yes" && d.discYear == null) return false;
+      if(disc === "no" && d.discYear != null) return false;
+      if((amin != null || amax != null) && d.area == null) return false;
+      if(amin != null && d.area < amin) return false;
+      if(amax != null && d.area > amax) return false;
+      return true;
+    });
+  }
+
+  function sorted(rows){
+    var k = state.key, dir = state.dir === "asc" ? 1 : -1;
+    return rows.slice().sort(function(a, b){
+      var av = a[k], bv = b[k];
+      // Missing values always go to the bottom
+      if(av == null && bv == null) return 0;
+      if(av == null) return 1;
+      if(bv == null) return -1;
+      if(typeof av === "string") return av.localeCompare(bv) * dir;
+      return (av - bv) * dir || a.name.localeCompare(b.name);
+    });
+  }
+
+  function mapsUrl(d){
+    if(typeof d.lon === "number"){
+      return "https://www.google.com/maps/search/?api=1&query=" + d.lat + "," + d.lon;
+    }
+    var name = d.name, extra = "";
+    var m = name.match(/^(.*?)\s*\((.*)\)\s*$/);
+    if(m){ name = m[1]; extra = m[2]; }
+    var c = d.country.split(";")[0].trim();
+    var inner = c.match(/\(([^)]*)\)/);
+    if(/^Antarctica/.test(c)) c = "Antarctica";
+    else if(inner && !/claim|unassigned|unclaimed|disputed|Crown/i.test(inner[1])) c = inner[1];
+    else c = c.replace(/\s*\(.*\)/, "");
+    var parts = [name];
+    if(extra && extra.toLowerCase() !== c.toLowerCase()) parts.push(extra);
+    if(c.toLowerCase() === name.toLowerCase()) parts[0] = name + " island";
+    else parts.push(c);
+    return "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(parts.join(", "));
+  }
+  var PAGE = 500, shown = PAGE, current = [];
+  function rowHtml(d, i){
+    return "<tr>" +
+      '<td class="rank">' + (i + 1) + "</td>" +
+      '<td class="name"><a href="' + esc(mapsUrl(d)) + '" target="_blank" rel="noopener" title="Open ' + esc(d.name) + ' in Google Maps">' + esc(d.name) + '<span class="pin" aria-hidden="true">↗</span></a></td>' +
+      '<td class="num">' + fmtArea(d.area) + "</td>" +
+      '<td class="num">' + fmtElev(d) + "</td>" +
+      "<td>" + esc(d.country) + "</td>" +
+      '<td class="nw">' + esc(d.region) + "</td>" +
+      '<td class="num">' + fmtLat(d.lat, d.latApprox) + "</td>" +
+      '<td class="num">' + fmtTemp(d.temp) + "</td>" +
+      "<td>" + (d.discNote ? esc(d.discNote) : '<span class="na">—</span>') + "</td>" +
+      "<td>" + esc(d.type) + "</td>" +
+      "</tr>";
+  }
+  function updateMore(){
+    var left = current.length - shown;
+    $("more").hidden = left <= 0;
+    $("more").textContent = "Show " + Math.min(left, 1000).toLocaleString() + " more (" + left.toLocaleString() + " not shown)";
+  }
+  function showMore(){
+    var from = shown; shown = Math.min(shown + 1000, current.length);
+    var html = "";
+    for(var i = from; i < shown; i++) html += rowHtml(current[i], i);
+    $("rows").insertAdjacentHTML("beforeend", html);
+    updateMore();
+  }
+  var timer = null;
+  function debounced(){ clearTimeout(timer); timer = setTimeout(render, 160); }
+  function render(){
+    var rows = sorted(filtered());
+    current = rows; shown = Math.min(PAGE, rows.length);
+    $("count").textContent = rows.length.toLocaleString() + " of " + DATA.length.toLocaleString() + " islands";
+    if(!rows.length){
+      $("rows").innerHTML = '<tr><td colspan="10" class="empty">No islands match these filters. Press Reset to clear them.</td></tr>';
+    } else {
+      var html = "";
+      for(var i = 0; i < shown; i++){
+        html += rowHtml(rows[i], i);
+      }
+      $("rows").innerHTML = html;
+    }
+    updateMore();
+    var ths = document.querySelectorAll("thead th[data-key]");
+    for(var j = 0; j < ths.length; j++){
+      var th = ths[j], on = th.getAttribute("data-key") === state.key;
+      th.setAttribute("aria-sort", on ? (state.dir === "asc" ? "ascending" : "descending") : "none");
+      th.querySelector(".ind").textContent = on ? (state.dir === "asc" ? "▲" : "▼") : "↕";
+    }
+  }
+
+  function setUnits(u){
+    state.units = u;
+    $("u-metric").setAttribute("aria-pressed", u === "metric");
+    $("u-imperial").setAttribute("aria-pressed", u === "imperial");
+    var areaUnit = u === "metric" ? "km²" : "mi²";
+    document.querySelector(".area-h").textContent = "Area (" + areaUnit + ")";
+    document.querySelector(".elev-h").textContent = "Highest point (" + (u === "metric" ? "m" : "ft") + ")";
+    document.querySelector(".temp-h").textContent = "Avg temp (" + (u === "metric" ? "°C" : "°F") + ", approx.)";
+    $("area-label").textContent = "Area (" + areaUnit + ") min – max";
+    $("amin").value = ""; $("amax").value = "";
+    render();
+  }
+
+  function fillSelect(id, values){
+    var sel = $(id), keep = sel.value;
+    while(sel.options.length > 1) sel.remove(1);
+    values.forEach(function(v){ var o = document.createElement("option"); o.value = v; o.textContent = v; sel.appendChild(o); });
+    sel.value = keep;
+  }
+
+  function csv(){
+    var rows = sorted(filtered());
+    var au = state.units === "metric" ? "km2" : "mi2", tu = state.units === "metric" ? "C" : "F";
+    var eu = state.units === "metric" ? "m" : "ft";
+    var out = [["Island","Area (" + au + ")","Highest point (" + eu + ")","Highest named peak","Country","Region","Latitude","Avg temp (" + tu + ", approx)","Discovered","Type","Google Maps"]];
+    rows.forEach(function(d){
+      var a = d.area == null ? "" : (state.units === "metric" ? d.area : Number((d.area * KM2_TO_MI2).toPrecision(3)));
+      var t = state.units === "metric" ? d.temp : Math.round((d.temp * 9/5 + 32) * 10) / 10;
+      var e = d.elev == null ? "" : (state.units === "metric" ? d.elev : Math.round(d.elev * 3.28084));
+      out.push([d.name, a, e, d.peak || "", d.country, d.region, d.lat, t, d.discNote || "", d.type, mapsUrl(d)]);
+    });
+    var text = out.map(function(r){ return r.map(function(v){ return '"' + String(v).replace(/"/g, '""') + '"'; }).join(","); }).join("\n");
+    var blob = new Blob(["﻿" + text], { type:"text/csv;charset=utf-8" });
+    if(downloads){
+      downloads.save({ filename:"islands.csv", data:blob }).catch(function(e){
+        var code = e && e.code;
+        if(code === "declined") return;
+        if(code === "rate_limited"){ alert("A download prompt is already open."); return; }
+        alert("Download isn't available here (" + (code || "error") + ").");
+      });
+      return;
+    }
+    // Standalone copy of the page (opened from disk or another host): plain link download
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "islands.csv";
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  // On claude.ai the viewer only allows saves through the downloads capability
+  var downloads = null;
+  if(window.claude && typeof window.claude.use === "function"){
+    window.claude.use("downloads").then(function(d){ downloads = d; }, function(){});
+  }
+
+  function prep(d){ d._unnamed = d.name.indexOf("Unnamed island") === 0; d._countries = d.country.split(/;\s*/).map(function(c){ return c.replace(/\s*\(.*\)$/, ""); }); }
+  function refreshMeta(){
+
+    var regions = {}, countries = {}, types = {};
+    DATA.forEach(function(d){
+      regions[d.region] = 1; types[d.type] = 1;
+      d._countries.forEach(function(c){ countries[c] = 1; });
+    });
+    fillSelect("region", Object.keys(regions).sort());
+    fillSelect("country", Object.keys(countries).sort());
+    fillSelect("type", Object.keys(types).sort());
+    function n(f){ return DATA.filter(f).length.toLocaleString(); }
+    $("subtitle").textContent = DATA.length.toLocaleString() + " islands: every island over 100 km² (" + n(function(d){ return d.area >= 100; }) +
+      ", " + n(function(d){ return d.area >= 1000; }) + " of them over 1,000 km²), " + n(function(d){ return d.area >= 50 && d.area < 100; }) +
+      " of 50–100 km², " + n(function(d){ return d.area >= 10 && d.area < 50; }) + " of 10–50 km², " + n(function(d){ return d.area >= 1 && d.area < 10; }) + " of 1–10 km²" +
+      (DATA.some(function(d){ return d.area < 1; }) ? ", " + n(function(d){ return d.area >= 0.1 && d.area < 1; }) +  " of 0.1–1 km², " + n(function(d){ return d.area != null && d.area < 0.1; }) + " named islets under 0.1 km²" +
+      (DATA.some(function(d){ return d.area == null; }) ? " and " + n(function(d){ return d.area == null; }) + " named islets mapped only as a point (size unknown)" : "") : "") + ". Click any column header to sort, or an island’s name to open it in Google Maps." +
+      (pending ? " Loading islands under 1 km² (this can take a few seconds)…" : "");
+  }
+  var pending = 0;
+  // Islands under 1 km² come in extra compact files: {cols:[...], c:[countries], r:[regions], t:[types], rows:[[...]]}
+  function addCompact(p){
+    var cols = p.cols;
+    p.rows.forEach(function(a){
+      var d = {};
+      for(var i = 0; i < cols.length; i++) d[cols[i]] = a[i];
+      d.country = p.c[d.country]; d.region = p.r[d.region]; d.type = p.t[d.type];
+      d.discNote = null; d.discYear = null; d.latApprox = false;
+      if(d.elev === undefined) d.elev = null; if(d.peak === undefined) d.peak = null;
+      prep(d); DATA.push(d);
+    });
+  }
+  function loadExtra(){
+    var urls = (window.ISLANDS_EXTRA || EXTRA_JSON).slice();
+    pending = urls.length; refreshMeta();
+    urls.forEach(function(u){
+      fetch(u).then(function(r){ if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+        .then(function(p){ addCompact(p); })
+        .catch(function(){})
+        .then(function(){ pending--; refreshMeta(); render(); });
+    });
+  }
+
+  function init(payload){
+    DATA = payload.islands || payload;
+    DATA.forEach(prep);
+    refreshMeta();
+    if(payload.updated) $("updated").textContent = "Data last updated " + payload.updated + ". Source: " + (payload.source || "see above") + ".";
+
+    ["q","region","country","type","size","named","hemi","disc","amin","amax"].forEach(function(id){
+      $(id).addEventListener("input", id === "q" || id === "amin" || id === "amax" ? debounced : render);
+      $(id).addEventListener("change", render);
+    });
+    var ths = document.querySelectorAll("thead th[data-key]");
+    for(var i = 0; i < ths.length; i++){
+      (function(th){
+        function go(){
+          var k = th.getAttribute("data-key");
+          if(state.key === k){ state.dir = state.dir === "asc" ? "desc" : "asc"; }
+          else { state.key = k; state.dir = (k === "area" || k === "temp" || k === "elev") ? "desc" : "asc"; }
+          render();
+        }
+        th.addEventListener("click", go);
+        th.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); go(); } });
+      })(ths[i]);
+    }
+    $("u-metric").addEventListener("click", function(){ setUnits("metric"); });
+    $("u-imperial").addEventListener("click", function(){ setUnits("imperial"); });
+    $("reset").addEventListener("click", function(){
+      ["q","amin","amax"].forEach(function(id){ $(id).value = ""; });
+      ["region","country","type","size","named","hemi","disc"].forEach(function(id){ $(id).value = ""; });
+      state.key = "area"; state.dir = "desc";
+      render();
+    });
+    $("csv").addEventListener("click", csv);
+    $("more").addEventListener("click", showMore);
+    render();
+    loadExtra();
+  }
+
+  // Theme toggle
+  var root = document.documentElement;
+  try { var saved = localStorage.getItem("islands-theme"); if(saved) root.setAttribute("data-theme", saved); } catch(e){}
+  $("theme").addEventListener("click", function(){
+    var dark = root.getAttribute("data-theme") === "dark" ||
+      (!root.getAttribute("data-theme") && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    var next = dark ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    try { localStorage.setItem("islands-theme", next); } catch(e){}
+  });
+
+  // Load data: 1) islands-data.js next to this file, 2) hosted copy on claude.ai
+  if(window.ISLANDS_DATA){
+    init(window.ISLANDS_DATA);
+  } else {
+    fetch(HOSTED_JSON).then(function(r){ if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(init)
+      .catch(function(){
+        $("count").textContent = "No data loaded";
+        $("rows").innerHTML = '<tr><td colspan="10" class="empty">Couldn\'t find the island data.</td></tr>';
+        $("error").innerHTML = '<div class="err">The island data in the <strong>data</strong> folder could not be loaded. Check your connection and reload.</div>';
+      });
+  }
+})();
+</script>
+</body>
+</html>
